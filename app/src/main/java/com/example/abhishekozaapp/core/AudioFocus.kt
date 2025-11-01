@@ -18,18 +18,12 @@ object AudioFocus {
 
         channelListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
             when (focusChange) {
-                AudioManager.AUDIOFOCUS_GAIN -> {
-                    // Regained focus — fine
-                }
-
+                AudioManager.AUDIOFOCUS_GAIN -> {}
                 AudioManager.AUDIOFOCUS_LOSS,
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                    // Lost focus — we could pause our own player if needed
-                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {}
             }
         }
 
-        // Request focus transiently — this pauses other apps' audio
         val result = aManager?.requestAudioFocus(
             channelListener,
             AudioManager.STREAM_MUSIC,

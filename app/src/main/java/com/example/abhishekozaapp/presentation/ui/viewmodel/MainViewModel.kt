@@ -1,13 +1,8 @@
 package com.example.abhishekozaapp.presentation.ui.viewmodel
 
 import android.content.Context
-import android.content.Context.AUDIO_SERVICE
-import android.media.AudioManager
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.abhishekozaapp.core.AppUtil.appToast
-import com.example.abhishekozaapp.core.RaiseToEar
 import com.example.abhishekozaapp.domain.usecases.AutoSwitchRecordingUseCase
 import com.example.abhishekozaapp.domain.usecases.GetRecordingUseCase
 import com.example.abhishekozaapp.domain.usecases.PlayRecordingUseCase
@@ -23,15 +18,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val startRecording: StartRecordingUseCase,
     private val stopRecording: StopRecordingUseCase,
     private val getAllRecordings: GetRecordingUseCase,
-    private val autoSwitchRecordingUseCase: AutoSwitchRecordingUseCase,
-    private val playRecordingUseCase: PlayRecordingUseCase
 ) : ViewModel() {
-
-
 
     private val _isRecording = MutableStateFlow(false)
     val isRecording = _isRecording.asStateFlow()
@@ -59,33 +49,4 @@ class MainViewModel @Inject constructor(
             _recordings.value = getAllRecordings.execute()
         }
     }
-
-    suspend fun playRecording(
-        filePath: String,
-        onStart: (() -> Unit)? = null,
-        onCompletion: (() -> Unit)? = null,
-        onError: ((String) -> Unit)? = null
-    ) {
-        stopRecording()
-        _isPlaying.value = true
-        playRecordingUseCase.execute(
-            filePath,
-            onStart = {
-                onStart?.invoke()
-            },
-            onCompletion = {
-                _isPlaying.value = false
-                onCompletion?.invoke()
-            },
-            onError = {
-                _isPlaying.value = false
-                onError?.invoke(it)
-            }
-        )
-    }
-
-    fun scheduleThemeSwitch() {
-        autoSwitchRecordingUseCase.execute()
-    }
-
 }

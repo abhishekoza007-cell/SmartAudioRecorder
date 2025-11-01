@@ -12,7 +12,7 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object AppModule { // ✅ must be object, not abstract
+object AppModule {
 
     @Provides
     @Singleton

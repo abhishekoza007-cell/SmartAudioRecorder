@@ -25,9 +25,6 @@ class AudioLocalDataSource @Inject constructor(
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var focusRequest: AudioFocusRequest? = null
 
-    /**
-     * Starts recording safely. Creates /recordings directory if needed.
-     */
     fun startRecording(): String? {
         if (isRecording) return outputFile
 
@@ -58,10 +55,6 @@ class AudioLocalDataSource @Inject constructor(
         return outputFile
     }
 
-
-    /**
-     * Stops current recording safely and releases resources.
-     */
     fun stopRecording(): String? {
         if (!isRecording) return null
 
@@ -81,9 +74,6 @@ class AudioLocalDataSource @Inject constructor(
         return outputFile
     }
 
-    /**
-     * Plays an audio file safely. Stops existing playback first.
-     */
     fun playAudio(
         filePath: String,
         onStart: (() -> Unit)? = null,
@@ -121,12 +111,6 @@ class AudioLocalDataSource @Inject constructor(
         }
     }
 
-
-
-
-    /**
-     * Stops playback safely.
-     */
     fun stopAudio() {
         try {
             player?.apply {
@@ -142,27 +126,18 @@ class AudioLocalDataSource @Inject constructor(
         }
     }
 
-    /**
-     * Returns list of all recorded files.
-     */
     fun getAllRecordings(): List<File> {
         val dir = File(context.filesDir, "recordings")
         return dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
     }
 
-    /**
-     * Checks whether recording is ongoing.
-     */
+
     fun isRecording(): Boolean = isRecording
 
-    /**
-     * Checks whether playback is ongoing.
-     */
+
     fun isPlaying(): Boolean = isPlaying
 
-    /**
-     * Release recorder safely
-     */
+
     private fun releaseRecorder() {
         try {
             recorder?.release()
@@ -173,9 +148,7 @@ class AudioLocalDataSource @Inject constructor(
         isRecording = false
     }
 
-    // ————————————————————————————————————————————
-    // 🔊 Audio Focus Helpers
-    // ————————————————————————————————————————————
+
     private fun requestAudioFocus(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)

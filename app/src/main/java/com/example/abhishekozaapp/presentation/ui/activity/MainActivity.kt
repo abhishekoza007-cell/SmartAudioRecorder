@@ -66,13 +66,10 @@ class MainActivity : AppCompatActivity() {
 
             playBtn.setOnClickListener {
                 lifecycleScope.launch {
-                    // If currently recording, stop and wait until finished
                     if (viewModel.isRecording.value) {
                         viewModel.stopRecording()
                         viewModel.isRecording.filter { !it }.first()
                     }
-
-                    // Stop any ongoing playback before starting new one
                     mediaPlayer?.let {
                         it.stop()
                         it.release()
@@ -135,12 +132,10 @@ class MainActivity : AppCompatActivity() {
     private fun routePlayback(useEarpiece: Boolean) {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
 
-        // Reset any previous audio routing
         audioManager.stopBluetoothSco()
         audioManager.isBluetoothScoOn = false
         audioManager.mode = AudioManager.MODE_NORMAL
 
-        // Switch between earpiece/speaker
         if (useEarpiece) {
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = false
@@ -149,7 +144,6 @@ class MainActivity : AppCompatActivity() {
             audioManager.isSpeakerphoneOn = true
         }
 
-        // Recreate MediaPlayer if actively playing
         mediaPlayer?.let { player ->
             val position = player.currentPosition
             val filePath = viewModel.recordings.value.firstOrNull()?.absolutePath ?: return
@@ -169,20 +163,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-//    private fun startRecording() {
-//        try {
-//            AudioFocus.requestToFocus(this)
-//            viewModel.startRecording()
-//            appToast(this, "Recording started")
-//        } catch (e: Exception) {
-//            e.printStackTrace()
-//            appToast(this, "Failed to start recording")
-//        }
-//    }
-
     private fun startRecording() {
         try {
-            // ✅ If playback is running, stop it first
+
             if (mediaPlayer?.isPlaying == true) {
                 mediaPlayer?.stop()
                 mediaPlayer?.release()

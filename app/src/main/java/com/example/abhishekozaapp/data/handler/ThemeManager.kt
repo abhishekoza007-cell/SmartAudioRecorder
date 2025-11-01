@@ -21,10 +21,6 @@ class ThemeManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    /**
-     * Apply current theme instantly based on time.
-     * (Light = 06:00–17:59, Dark = 18:00–05:59)
-     */
     fun applyThemeNow() {
         val desiredMode = if (isNightTime()) {
             AppCompatDelegate.MODE_NIGHT_YES
@@ -32,15 +28,11 @@ class ThemeManager @Inject constructor(
             AppCompatDelegate.MODE_NIGHT_NO
         }
 
-        // Apply only if different — avoids flicker
         if (AppCompatDelegate.getDefaultNightMode() != desiredMode) {
             AppCompatDelegate.setDefaultNightMode(desiredMode)
         }
     }
 
-    /**
-     * Schedule next automatic theme switch (06:00 or 18:00)
-     */
     @RequiresPermission(Manifest.permission.SCHEDULE_EXACT_ALARM)
     fun scheduleAutoSwitch() {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -81,7 +73,7 @@ class ThemeManager @Inject constructor(
     }
 
     /**
-     * Calculate the next time (06:00 or 18:00) to switch.
+     * Switch Proper calculation Logic
      */
     private fun calculateNextSwitchTime(): Calendar {
         val now = Calendar.getInstance()
@@ -106,17 +98,12 @@ class ThemeManager @Inject constructor(
         return next
     }
 
-    /**
-     * Returns true if it's currently night (18:00–05:59)
-     */
+
     fun isNightTime(): Boolean {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         return hour >= 18 || hour < 6
     }
 
-    /**
-     * Recheck theme without flicker (used onResume or time change)
-     */
     fun recheckTheme(activity: Activity) {
         val shouldBeNight = isNightTime()
         val currentNightMode =
