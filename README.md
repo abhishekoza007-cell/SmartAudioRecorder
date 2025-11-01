@@ -10,7 +10,9 @@ Covering Following Points :
 4. Raise-to-Ear : Loudspeaker to Earpiece
    -> Ref : RaiseToEar util class to route switch between speakers
 5. Light/Dark Theme : Smart toggle accordingly to daily time.
-6. Background Audio Activity : Pause/Resume other app's activity for aduio
+   -> Alaram Manager : To manage automatic theme toggle
+   -> Manual Theme : Manage for if service break at a dose mode
+7. Background Audio Activity : Pause/Resume other app's activity for aduio
    -> Ref : AudioFocus util class for manage logic
-7. Clean Architecture Structure + MVVM Pattern
+8. Clean Architecture Structure + MVVM Pattern
 
