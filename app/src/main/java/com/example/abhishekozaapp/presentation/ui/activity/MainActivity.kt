@@ -19,6 +19,8 @@ import com.example.abhishekozaapp.databinding.ActivityMainBinding
 import com.example.abhishekozaapp.presentation.ui.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,10 +30,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val viewModel: MainViewModel by viewModels()
 
-    private lateinit var audioManager: AudioManager
-    private var mediaPlayer: MediaPlayer? = null
-    private var recordedFile: String? = null
     private var raiseToEar: RaiseToEar? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     @Inject
     lateinit var themeManager: ThemeManager
@@ -45,7 +45,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         themeManager.applyThemeNow()
         themeManager.scheduleAutoSwitch()
 
@@ -66,13 +65,29 @@ class MainActivity : AppCompatActivity() {
             }
 
             playBtn.setOnClickListener {
-                val recordings = viewModel.recordings.value
-                if (recordings.isEmpty()) {
-                    appToast(this@MainActivity, "Please record something first")
-                    return@setOnClickListener
+                lifecycleScope.launch {
+                    // If currently recording, stop and wait until finished
+                    if (viewModel.isRecording.value) {
+                        viewModel.stopRecording()
+                        viewModel.isRecording.filter { !it }.first()
+                    }
+
+                    // Stop any ongoing playback before starting new one
+                    mediaPlayer?.let {
+                        it.stop()
+                        it.release()
+                        mediaPlayer = null
+                    }
+
+                    // Get latest recorded file
+                    val latestFile = viewModel.recordings.value.firstOrNull()
+                    if (latestFile == null) {
+                        appToast(this@MainActivity, "No recordings found")
+                        return@launch
+                    }
+
+                    playAudioRecording(latestFile.absolutePath)
                 }
-                val latestFile = recordings.first().absolutePath
-                playAudioRecording(latestFile)
             }
         }
     }
@@ -102,6 +117,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupRaiseToEar() {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         raiseToEar = RaiseToEar(
             this,
             audioManager,
@@ -116,22 +132,68 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun routePlayback(useEarpiece: Boolean) {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+
+        // Reset any previous audio routing
+        audioManager.stopBluetoothSco()
+        audioManager.isBluetoothScoOn = false
+        audioManager.mode = AudioManager.MODE_NORMAL
+
+        // Switch between earpiece/speaker
+        if (useEarpiece) {
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager.isSpeakerphoneOn = false
+        } else {
+            audioManager.mode = AudioManager.MODE_NORMAL
+            audioManager.isSpeakerphoneOn = true
+        }
+
+        // Recreate MediaPlayer if actively playing
+        mediaPlayer?.let { player ->
+            val position = player.currentPosition
+            val filePath = viewModel.recordings.value.firstOrNull()?.absolutePath ?: return
+            player.stop()
+            player.release()
+
+            mediaPlayer = MediaPlayer().apply {
+                setAudioStreamType(
+                    if (useEarpiece) AudioManager.STREAM_VOICE_CALL
+                    else AudioManager.STREAM_MUSIC
+                )
+                setDataSource(filePath)
+                prepare()
+                seekTo(position)
+                start()
+            }
+        }
+    }
+
+//    private fun startRecording() {
+//        try {
+//            AudioFocus.requestToFocus(this)
+//            viewModel.startRecording()
+//            appToast(this, "Recording started")
+//        } catch (e: Exception) {
+//            e.printStackTrace()
+//            appToast(this, "Failed to start recording")
+//        }
+//    }
+
     private fun startRecording() {
         try {
-            // 🛑 Stop playback before recording
-            mediaPlayer?.let { player ->
-                if (player.isPlaying) {
-                    player.stop()
-                    player.release()
-                    mediaPlayer = null
-                    appToast(this, "Playback stopped to start recording")
-                }
+            // ✅ If playback is running, stop it first
+            if (mediaPlayer?.isPlaying == true) {
+                mediaPlayer?.stop()
+                mediaPlayer?.release()
+                mediaPlayer = null
+                appToast(this, "Playback stopped to start recording")
             }
 
-            raiseToEar?.unregister()
             AudioFocus.requestToFocus(this)
             viewModel.startRecording()
             appToast(this, "Recording started")
+
         } catch (e: Exception) {
             e.printStackTrace()
             appToast(this, "Failed to start recording")
@@ -141,38 +203,23 @@ class MainActivity : AppCompatActivity() {
     private fun stopRecording() {
         viewModel.stopRecording()
         AudioFocus.abandonAudioFocus()
-        appToast(this, "Recording stopped")
         raiseToEar?.unregister()
+        appToast(this, "Recording stopped")
     }
 
     private fun playAudioRecording(path: String) {
-        if (viewModel.isRecording.value) {
-            stopRecording()
-            appToast(this, "Recording stopped — preparing playback...")
-            binding.playBtn.postDelayed({
-                playAudioRecording(path)
-            }, 600)
-            return
-        }
-
         val focusGranted = AudioFocus.requestToFocus(this)
         if (!focusGranted) {
             appToast(this, "Unable to get audio focus")
             return
         }
 
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         audioManager.mode = AudioManager.MODE_NORMAL
         audioManager.isSpeakerphoneOn = true
 
-        // Stop any existing playback
-        mediaPlayer?.runCatching {
-            stop()
-            release()
-        }
-        mediaPlayer = null
-        recordedFile = path
-
         try {
+            mediaPlayer?.release()
             mediaPlayer = MediaPlayer().apply {
                 setAudioStreamType(AudioManager.STREAM_MUSIC)
                 setDataSource(path)
@@ -186,10 +233,9 @@ class MainActivity : AppCompatActivity() {
             mediaPlayer?.setOnCompletionListener {
                 it.release()
                 mediaPlayer = null
-                audioManager.mode = AudioManager.MODE_NORMAL
-                audioManager.isSpeakerphoneOn = true
-                AudioFocus.abandonAudioFocus()
                 raiseToEar?.unregister()
+                AudioFocus.abandonAudioFocus()
+                appToast(this, "Playback completed")
             }
 
         } catch (e: Exception) {
@@ -200,49 +246,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun routePlayback(useEarpiece: Boolean) {
-        audioManager.mode = if (useEarpiece) {
-            AudioManager.MODE_IN_COMMUNICATION
-        } else {
-            AudioManager.MODE_NORMAL
-        }
-        audioManager.isSpeakerphoneOn = !useEarpiece
-
-        // Recreate player with correct routing
-        mediaPlayer?.let { player ->
-            val position = player.currentPosition
-            val path = recordedFile ?: return
-            player.stop()
-            player.release()
-
-            mediaPlayer = MediaPlayer().apply {
-                setAudioStreamType(
-                    if (useEarpiece) AudioManager.STREAM_VOICE_CALL
-                    else AudioManager.STREAM_MUSIC
-                )
-                setDataSource(path)
-                prepare()
-                seekTo(position)
-                start()
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        themeManager.recheckTheme(this)
-    }
-
     override fun onPause() {
         super.onPause()
-        themeManager.recheckTheme(this)
         raiseToEar?.unregister()
+        themeManager.recheckTheme(this)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer?.release()
-        mediaPlayer = null
         raiseToEar?.unregister()
         AudioFocus.abandonAudioFocus()
     }
@@ -256,7 +268,7 @@ class MainActivity : AppCompatActivity() {
         RunTimePermission.manageUserActions(
             requestCode,
             grantResults,
-            onGranted = { appToast(this, "Please Start Recording") },
+            onGranted = { appToast(this, "Please start recording") },
             onDenied = { appToast(this, "Permissions required to record audio") }
         )
     }
